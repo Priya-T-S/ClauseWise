@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import json
 import pandas as pd
+import tempfile
 
 # Import utility modules
 from utils.document_processor import DocumentProcessor
@@ -15,69 +16,197 @@ from utils.clause_analyzer import ClauseAnalyzer
 from utils.ner_extractor import LegalNERExtractor
 from utils.doc_classifier import DocumentClassifier
 from utils.granite_client import get_granite_client, GraniteConfig
+# Modern ClauseWise logo and features CSS
+st.markdown("""
+<style>
+/* Logo container styling */
+.sidebar-logo {
+    width: 32px !important;
+    height: 32px !important;
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    padding-left: 2px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
 
+
+
+/* Logo hover effect */
+.sidebar-logo:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6) !important;
+}
+
+/* Header styling */
+.sidebar-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 16px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.1), transparent) !important;
+}
+
+.sidebar-header span {
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    background: linear-gradient(90deg, #fff, #e2e8f0) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+</style>
+""", unsafe_allow_html=True)
 # Page configuration
 st.set_page_config(
     page_title="ClauseWise - Legal Document Analyzer",
-    page_icon="⚖️",
+    page_icon="⚖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+# Modern ClauseWise CSS
+st.markdown("""
+<style>
+    body, .stApp, .section-header, .sidebar-powered, .sidebar-section-title, .tab-section-desc, .uploaded-filesize, .uploaded-filename, .stInfo, .metric-card, .entity-box {
+  color: #ffffff !important;
+}
+            </style>
+            """, unsafe_allow_html=True)
+# Ensure the "Load Sample" button text is black
+
 
 # Custom CSS
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #2c3e50;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        border-bottom: 2px solid #1f77b4;
-        padding-bottom: 0.5rem;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
-    }
-    .entity-box {
-        background-color: #e8f4f8;
-        padding: 0.8rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
-        border-left: 4px solid #1f77b4;
-    }
-    .simplified-clause {
-        background-color: #e8f5e9;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #4caf50;
-    }
-    .original-clause {
-        background-color: #fff3e0;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-        border-left: 4px solid #ff9800;
-    }
+/* Make non-primary Streamlit buttons (e.g., "Load Sample") grey with black text before transition */
+button{
+    display: inline-block !important;
+    width: fit-content !important;
+                  
+    margin: 8px auto !important;
+    padding: 10px 5px !important;
+    background: linear-gradient(to right, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)) !important;
+    border: 2px solid rgba(59, 130, 246, 0.2) !important;
+    border-radius: 8px !important;
+    color: #e5e7eb !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-transform: none !important;
+    font-size: 0.5em !important;
+    font-wrap:
+}
+button:hover {
+    background: linear-gradient(to right, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2)) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+    color: #60a5fa !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15) !important;
+}
+button:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 1px 2px rgba(59, 130, 246, 0.1) !important;
+}
+
+
+     
 </style>
 """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+/* Set whole app background, text color and font */
+html, body, .stApp, .stApp > div, .main, .block-container {
+    background-color: #1e2838 !important;
+    color: white !important;
+    font-family: 'Inter', 'Poppins', sans-serif !important;
+}
+
+.sidebar-logo { width: 36px; height: 36px; background: #3b82f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.15rem; color: #94a3b8; margin-right: 8px;}
+.sidebar-header { display: flex; align-items: center; gap: 10px; margin-top: 18px; margin-left: 10px; margin-bottom: 8px; font-size: 1.1rem; font-weight: 700;}
+.sidebar-section-title { color: #94a3b8 !important; font-size: 0.91rem; letter-spacing: 1px; margin: 23px 0 8px 10px; font-weight: bold;}
+.sidebar-item {padding: 8px 0 8px 22px; margin: 2px 0; border-radius: 7px; color: #adb6ca; font-size: 0.99rem; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.2s, color 0.2s;}
+.sidebar-item.active, .sidebar-item:hover {background: #232e48; color: #3b82f6 !important;}
+            
+            
+
+/* Sidebar background */
+[data-testid="stSidebar"] {
+    background-color: #1e2838 !important;
+    color: white !important;
+}
+
+/* Make sure common elements inherit the white text */
+h1, h2, h3, h4, h5, p, span, div, label, textarea, input {
+    color: white !important;
+    background: transparent !important;
+}
+
+[data-testid="stToolbar"] button {
+    display: block !important;
+    width: 100% !important;
+    margin: 8px auto !important;
+    padding: 10px 15px !important;
+    background: linear-gradient(to right, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1)) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+    border-radius: 8px !important;
+    color:black !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-transform: none !important;
+
+    font-weight: bold !important;
+            
+}
+[data-testid="stToolbar"] button:hover {
+    background: #d97706 !important;  /* Darker on hover */
+    color: black !important;
+}
+            
+
+/* Style for dropdown menu and its items */
+[data-testid="stToolbar"] div[data-baseweb="popover"] {
+    background-color: rgb(77, 98, 133) !important;
+    border: 1px solid #4a5568 !important;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+    color: #e2e8f0 !important;
+}
+
+[data-testid="stToolbar"] button[kind="menuItem"] {
+    color: #e2e8f0 !important;
+    background-color: rgb(77, 98, 133) !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+}
+
+[data-testid="stToolbar"] button[kind="menuItem"]:hover {
+    background-color: #4a5568 !important;
+   
+}
+
+/* Info messages */
+.stAlert {
+    color: white !important;
+}
+
+/* Tweak inputs/textareas for contrast */
+textarea, input, .stTextArea, .stTextInput>div>input {
+    background-color: #243046 !important;
+    color: white !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
+/* Rest of your existing styles... */
+""", unsafe_allow_html=True)
+# (Keep the rest of your existing style definitions here)
 
 # Initialize session state
 if 'processed_doc' not in st.session_state:
@@ -100,15 +229,19 @@ def main():
     )
     
     # Sidebar
+    # --- SIDEBAR ---
+    st.sidebar.markdown(
+        '<div class="sidebar-header"><div class="sidebar-logo">CW</div>'
+        '<span>ClauseWise</span></div>', unsafe_allow_html=True
+)
+
     with st.sidebar:
         st.markdown("### 📋 Features")
-        st.markdown("""
-        - 📝 **Clause Simplification**
-        - 🏷️ **Named Entity Recognition**
-        - 📑 **Clause Extraction**
-        - 🗂️ **Document Classification**
-        - 📄 **Multi-Format Support**
-        """)
+        st.button("""-  Clause Simplification""")
+        st.button("""-  Named Entity Recognition""")
+        st.button("""-  Clause Extraction""")
+        st.button("""-  Document Classification""")
+        st.button("""-  Multi-Format Support""")
         
         st.markdown("---")
         st.markdown("### 🔧 Powered By")
@@ -125,13 +258,204 @@ def main():
     
     # Main content
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📤 Upload Document",
-        "🗂️ Classification",
-        "📑 Clause Analysis",
-        "🏷️ Entity Extraction",
-        "💡 Simplification"
+        "Upload Document",
+        "Classification",
+        "Clause Analysis",
+        "Entity Extraction",
+        "Simplification"
     ])
-    
+    # Tabs-only CSS overrides (replace $SELECTION_PLACEHOLDER$ with this)
+    st.markdown("""
+    <style>
+    /* Tabs row like the React example: horizontal, bottom border */
+    div[role="tablist"] {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-end;
+        border-bottom: 1px solid #334155; /* slate-700 */
+        margin-bottom: 1rem;
+        padding-bottom: 0.25rem;
+    }
+
+    /* Tab buttons: initial (inactive) text color = white */
+    div[role="tablist"] > button[role="tab"] {
+        padding: 0.5rem 0.25rem !important;
+        margin: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;        /* keep initial color white */
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+        font-size: 1rem !important;
+        cursor: pointer !important;
+        transition: color 0.15s ease, border-bottom-color 0.15s ease, transform 0.08s ease !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+
+    /* Hover for inactive tabs (still white) */
+    div[role="tablist"] > button[role="tab"]:not([aria-selected="true"]):hover {
+        color: #ffffff !important;
+        transform: translateY(-1px);
+    }
+
+    /* Active tab: blue text + blue bottom border to mimic React underline */
+    div[role="tablist"] > button[role="tab"][aria-selected="true"] {
+        color: #60a5fa !important;          /* text-blue-400 */
+        border-bottom-color: #3b82f6 !important; /* border-blue-500 */
+        background: transparent !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    /* Keep children (icons/text) inheriting tab color */
+    div[role="tablist"] > button[role="tab"] * {
+        color: inherit !important;
+    }
+
+    /* Remove focus outline */
+    div[role="tablist"] > button[role="tab"]:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    /* Make the file uploader "Browse" button more prominent */
+    div.stFileUploader button,
+    button[aria-label="Browse files"],
+    button[aria-label="Choose a file"],
+    div[role="listitem"] div.stFileUploader button {
+        background: linear-gradient(90deg, #f59e0b, #ffb84d) !important;
+        color: #0b1220 !important;
+        font-weight: 900 !important;
+        font-size: 1.12rem !important;
+        padding: 12px 24px !important;
+        border-radius: 12px !important;
+        border: 1.5px solid rgba(0,0,0,0.18) !important;
+        box-shadow: 0 16px 40px rgba(245,158,11,0.30) !important;
+        transition: transform 0.08s ease, box-shadow 0.12s ease, opacity 0.12s ease !important;
+    }
+
+    /* Hover & focus states to draw attention */
+    div.stFileUploader button:hover,
+    button[aria-label="Browse files"]:hover,
+    button[aria-label="Choose a file"]:hover,
+    div.stFileUploader button:focus {
+        transform: translateY(-4px) !important;
+        box-shadow: 0 22px 50px rgba(245,158,11,0.34) !important;
+        outline: none !important;
+    }
+
+    /* Make the uploader container slightly highlighted */
+    div.stFileUploader {
+        background: linear-gradient(180deg, rgba(255,185,77,0.04), rgba(0,0,0,0.02)) !important;
+        border-radius: 14px !important;
+        padding: 14px !important;
+        border: 1.5px dashed rgba(245,158,11,0.32) !important;
+        position: relative;
+        overflow: hidden;
+        min-height: 120px;
+    }
+
+    /* Enhance the uploader instruction text contrast (keep above watermark) */
+    div.stFileUploader > div, div.stFileUploader > label {
+        color: rgba(255,255,255,1) !important;      /* full white instruction text */
+        font-weight: 900 !important;
+        position: relative;
+        z-index: 5;                     /* ensure it stays topmost */
+        font-size: 1.08rem !important;
+        letter-spacing: 0.01em !important;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.55);
+    }
+
+    /* Watermark-style centered guidance text (now significantly more visible) */
+    div.stFileUploader::before {
+        content: "Drag and drop file here — Limit 10MB per file • PDF, DOCX, TXT";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.18rem;
+        font-weight: 900;
+        color: rgba(255, 255, 255, 0.72); /* much stronger watermark */
+        text-shadow: 0 2px 8px rgba(0,0,0,0.65);
+        pointer-events: none;
+        z-index: 3;
+        white-space: nowrap;
+        letter-spacing: 0.02em;
+        transition: color 0.12s ease, transform 0.12s ease, opacity 0.12s ease;
+        opacity: 1;
+        padding: 0 8px;
+        backdrop-filter: blur(2px) saturate(120%);
+    }
+
+    /* Darken a subtle band behind the watermark to improve legibility (non-interactive) */
+    div.stFileUploader::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 92%;
+        height: 46%;
+        background: rgba(0,0,0,0.22);
+        border-radius: 10px;
+        pointer-events: none;
+        z-index: 2;
+        filter: blur(2px);
+    }
+
+    /* Make watermark more visible on hover/focus and lift slightly */
+    div.stFileUploader:hover::before,
+    div.stFileUploader:focus-within::before {
+        color: rgba(255,255,255,0.80);
+        transform: translate(-50%, -50%) scale(1.08);
+        opacity: 1;
+    }
+
+    /* Ensure uploader children render above the watermark */
+    div.stFileUploader > * {
+        position: relative;
+        z-index: 5;
+    }
+
+    /* Boost nested instruction spans/paragraphs visibility */
+    div.stFileUploader span, div.stFileUploader p {
+        color: rgba(255,255,255,1) !important;
+        font-weight: 900 !important;
+        z-index: 5 !important;
+        text-shadow: 0 1px 0 rgba(0,0,0,0.45);
+        font-size: 1.02rem !important;
+    }
+
+    /* Slightly increase contrast for any small helper text */
+    div.stFileUploader small, div.stFileUploader em, div.stFileUploader .help {
+        color: rgba(255,255,255,0.92) !important;
+        font-weight: 700 !important;
+        z-index: 5 !important;
+    }
+
+    /* Responsive: make button full width on narrow screens and adjust watermark */
+    @media (max-width: 600px) {
+        div.stFileUploader button {
+            width: 100% !important;
+            font-size: 1.06rem !important;
+            padding: 14px 18px !important;
+        }
+        div.stFileUploader::before {
+            font-size: 1.02rem;
+            color: rgba(255,255,255,0.66);
+            white-space: normal;
+            padding: 0 10px;
+        }
+        div.stFileUploader::after {
+            height: 52%;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
     # Tab 1: Upload Document
     with tab1:
         st.markdown('<div class="section-header">Upload Legal Document</div>', unsafe_allow_html=True)
@@ -144,7 +468,8 @@ def main():
         
         if uploaded_file:
             # Save uploaded file temporarily
-            temp_path = Path("/tmp") / uploaded_file.name
+            temp_dir = tempfile.gettempdir()  # This will return the right temp folder for Windows or Linux
+            temp_path = Path(temp_dir) / uploaded_file.name
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             
@@ -361,7 +686,7 @@ def main():
                 value=3
             )
             
-            if st.button("✨ Simplify Selected Clauses", type="primary"):
+            if st.button("Simplify Selected Clauses", type="primary"):
                 with st.spinner("Simplifying clauses using IBM Granite AI..."):
                     analyzer = ClauseAnalyzer()
                     simplified = analyzer.batch_simplify(st.session_state.clauses, max_clauses=num_clauses)
